@@ -75,7 +75,7 @@ def recommend_movies(
             
         elif mood:
             logger.info(f"Executando recomendação por mood: '{mood}'")
-            mood_service = get_mood_recommendation_service()
+            mood_service = get_mood_recommendation_service(repository=repository)
             movies = mood_service.get_recommendations(mood=mood)
             logger.debug(f"MoodService retornou {len(movies)} filme(s) para mood '{mood}'")
             return movies

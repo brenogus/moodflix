@@ -8,6 +8,7 @@ import logging
 from typing import List, Dict, Optional
 from app.domain.entities.movie import Movie
 from app.domain.services.domain_service_interface import IDomainService
+from app.domain.repositories.movie_repository_interface import IMovieRepository
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ class MoodRecommendationService(IDomainService):
     baseado no estado emocional (mood) do usuário.
     
     Attributes:
-        mood_map: Dicionário mapeando moods para listas de filmes recomendados
+        MOOD_TO_GENRE_MAP: Dicionário mapeando moods para listas de generos
     
     Example:
         >>> service = MoodRecommendationService()
@@ -28,63 +29,17 @@ class MoodRecommendationService(IDomainService):
         2
     """
     
-    # Mapa de moods para recomendações de filmes
-    MOOD_MAP: Dict[str, List[Movie]] = {
-        "triste": [
-            Movie(
-                title="Á Procura da Felicidade",
-                genre="drama",
-                rating=8.0,
-                release_year=2006
-            ),
-            Movie(
-                title="Soul",
-                genre="animacao",
-                rating=8.1,
-                release_year=2020
-            )
-        ],
-        "feliz": [
-            Movie(
-                title="Se Beber Não Case",
-                genre="comedia",
-                rating=8.9,
-                release_year=2009
-            ),
-            Movie(
-                title="As Branquelas",
-                genre="comedia",
-                rating=7.8,
-                release_year=2004
-            )
-        ],
-        "pensativo": [
-            Movie(
-                title="Interestelar",
-                genre="ficção científica",
-                rating=8.6,
-                release_year=2014
-            ),
-            Movie(
-                title="A Origem",
-                genre="ficção científica",
-                rating=9.0,
-                release_year=2010
-            )
-        ],
-        "romantico": [
-            Movie(
-                title="Diário de uma Paixão",
-                genre="romance",
-                rating=7.6,
-                release_year=2004
-            )
-        ]
+    MOOD_TO_GENRE_MAP = {
+        "triste": "drama",
+        "feliz": "comedia",
+        "pensativo": "ficcao",
+        "romantico": "romance"
     }
 
-    def __init__(self):
+
+    def __init__(self, repository: IMovieRepository):
         """Inicializa o serviço de recomendação por mood."""
-        self.mood_map = self.MOOD_MAP.copy()
+        self.repository = repository
         logger.debug("MoodRecommendationService inicializado")
 
     def get_recommendations(self, mood: Optional[str] = None, **kwargs) -> List[Movie]:
@@ -115,20 +70,20 @@ class MoodRecommendationService(IDomainService):
             return []
 
         mood_lower = mood.lower().strip()
-        recommendations = self.mood_map.get(mood_lower, [])
+        genre_name = self.MOOD_TO_GENRE_MAP.get(mood_lower)
         
-        if not recommendations:
+        if not genre_name:
             logger.warning(
                 f"Mood desconhecido: '{mood}'. "
-                f"Moods suportados: {', '.join(self.mood_map.keys())}"
+                f"Moods suportados: {', '.join(self.MOOD_TO_GENRE_MAP.keys())}"
             )
+            return []
         else:
             logger.info(
                 f"Recomendações geradas para mood: '{mood}' - "
-                f"{len(recommendations)} filme(s) retornado(s)"
             )
         
-        return recommendations
+        return self.repository.get_by_genre(genre_name, limit=15)
     
     def add_mood_recommendation(self, mood: str, movie: Movie) -> None:
         """Adiciona uma recomendação para um mood específico.
@@ -153,7 +108,7 @@ class MoodRecommendationService(IDomainService):
         logger.info(f"Recomendação adicionada: '{movie.title}' para mood '{mood}'")
 
 
-def get_mood_recommendation_service() -> MoodRecommendationService:
+def get_mood_recommendation_service(repository: IMovieRepository) -> MoodRecommendationService:
     """Factory function para obter instância do serviço de mood.
     
     Returns:
@@ -163,4 +118,8 @@ def get_mood_recommendation_service() -> MoodRecommendationService:
         Cada chamada retorna uma nova instância.
         Para Singleton, use um container de DI.
     """
-    return MoodRecommendationService()
+    if not repository:
+        logger.debug("Sem repositorio incluido!")
+        return []
+    
+    return MoodRecommendationService(repository)
