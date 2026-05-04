@@ -36,6 +36,17 @@ class TMDBDataSource(IMovieDataSource):
         20
     """
 
+     # Mapeamento de gêneros em português para IDs da TMDB
+    GENRE_MAP = {
+        "acao": 28,
+        "comedia": 35,
+        "ficcao": 878,
+        "drama": 18,
+        "terror": 27,
+        "romance": 10749,
+        "animacao": 16
+    }
+
     def __init__(self):
         """Inicializa a fonte de dados TMDB."""
         logger.debug("TMDBDataSource inicializado")

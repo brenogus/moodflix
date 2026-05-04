@@ -32,7 +32,6 @@ class MovieRepository(IMovieRepository):
     
     Attributes:
         data_source: Implementação de IMovieDataSource para obter dados
-        GENRE_MAP: Mapeamento de nomes de gêneros (português) para IDs TMDB
     
     Example:
         >>> from app.infrastructure.external.tmdb_data_source import TMDBDataSource
@@ -43,16 +42,7 @@ class MovieRepository(IMovieRepository):
         5
     """
     
-    # Mapeamento de gêneros em português para IDs da TMDB
-    GENRE_MAP = {
-        "acao": 28,
-        "comedia": 35,
-        "ficcao": 878,
-        "drama": 18,
-        "terror": 27,
-        "romance": 10749,
-        "animacao": 16
-    }
+    
 
     def __init__(self, data_source: IMovieDataSource):
         """Inicializa o repositório com uma fonte de dados.
@@ -108,11 +98,11 @@ class MovieRepository(IMovieRepository):
                 logger.warning(f"Gênero inválido: {genre}")
                 return []
             
-            genre_id = self.GENRE_MAP.get(genre.lower().strip())
+            genre_id = self.data_source.GENRE_MAP.get(genre.lower().strip())
             if not genre_id:
                 logger.warning(
                     f"Gênero desconhecido: '{genre}'. "
-                    f"Gêneros suportados: {', '.join(self.GENRE_MAP.keys())}"
+                    f"Gêneros suportados: {', '.join(self.data_source.GENRE_MAP.keys())}"
                 )
                 return []
 
