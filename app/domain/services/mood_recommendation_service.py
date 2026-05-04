@@ -29,7 +29,7 @@ class MoodRecommendationService(IDomainService):
         2
     """
     
-    MOOD_TO_GENRE_MAP = {
+    DEFAULT_MOOD_TO_GENRE_MAP = {
         "triste": "drama",
         "feliz": "comedia",
         "pensativo": "ficcao",
@@ -37,9 +37,10 @@ class MoodRecommendationService(IDomainService):
     }
 
 
-    def __init__(self, repository: IMovieRepository):
+    def __init__(self, repository: IMovieRepository, mood_map:dict):
         """Inicializa o serviço de recomendação por mood."""
         self.repository = repository
+        self.mood_map = mood_map
         logger.debug("MoodRecommendationService inicializado")
 
     def get_recommendations(self, mood: Optional[str] = None, **kwargs) -> List[Movie]:
@@ -70,12 +71,12 @@ class MoodRecommendationService(IDomainService):
             return []
 
         mood_lower = mood.lower().strip()
-        genre_name = self.MOOD_TO_GENRE_MAP.get(mood_lower)
+        genre_name = self.mood_map.get(mood_lower)
         
         if not genre_name:
             logger.warning(
                 f"Mood desconhecido: '{mood}'. "
-                f"Moods suportados: {', '.join(self.MOOD_TO_GENRE_MAP.keys())}"
+                f"Moods suportados: {', '.join(self.mood_map.keys())}"
             )
             return []
         else:
@@ -122,4 +123,4 @@ def get_mood_recommendation_service(repository: IMovieRepository) -> MoodRecomme
         logger.debug("Sem repositorio incluido!")
         return []
     
-    return MoodRecommendationService(repository)
+    return MoodRecommendationService(repository, MoodRecommendationService.DEFAULT_MOOD_TO_GENRE_MAP)
