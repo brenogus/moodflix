@@ -46,6 +46,7 @@ app = FastAPI(
 # Registrar roteadores
 app.include_router(movies.router, prefix="/api/v1", tags=["movies"])
 
+
 # Health check endpoint
 @app.get("/health", tags=["health"])
 def health_check():

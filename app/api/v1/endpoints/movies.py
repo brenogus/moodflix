@@ -7,7 +7,7 @@ Faz parte da camada de Presentation/API (Clean Architecture).
 import logging
 from typing import List, Optional
 from fastapi import APIRouter, Query
-from app.aplication.use_cases.recommend_movies import recommend_movies
+from app.application.use_cases.recommend_movies import recommend_movies
 from app.repositories.movie_repository import movie_repository
 from app.schemas.movie_schema import MovieResponse
 
