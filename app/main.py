@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.config import settings
 from app.api.v1.endpoints import movies
-
+from app.api.v1.endpoints import user
 # Configurar logging da aplicacao
 logging.basicConfig(
     level=settings.LOG_LEVEL,
@@ -45,7 +45,7 @@ app = FastAPI(
 
 # Registrar roteadores
 app.include_router(movies.router, prefix="/api/v1", tags=["movies"])
-
+app.include_router(user.router, prefix="/api/v1/users", tags=["Users"])
 
 # Health check endpoint
 @app.get("/health", tags=["health"])
