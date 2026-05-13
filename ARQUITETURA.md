@@ -1,559 +1,210 @@
-"""
-ARQUITETURA DO PROJETO MOODFLIX
-================================
+# Arquitetura do Projeto MoodFlix
 
-Este documento detalha a arquitetura da API MoodFlix seguindo os princípios
-de Clean Architecture proposta por Robert C. Martin (Uncle Bob).
+Este documento descreve a arquitetura da API MoodFlix seguindo os princípios de Clean Architecture propostos por Robert C. Martin (Uncle Bob).
 
-## 1. VISÃO GERAL
+## 1. Visão Geral
 
-MoodFlix é uma API REST que recomenda filmes baseado em gênero ou estado emocional
-(mood) do usuário. A arquitetura segue Clean Architecture para garantir:
-- Independência de frameworks
-- Testabilidade
-- Separação clara de responsabilidades
-- Facilidade de manutenção
+MoodFlix é uma API REST que recomenda filmes baseado em gênero ou estado emocional (mood) do usuário, com sistema de cadastro, autenticação e MoodMaps personalizados.
 
+A arquitetura segue Clean Architecture para garantir independência de frameworks, testabilidade, separação clara de responsabilidades e facilidade de manutenção.
 
-## 2. ESTRUTURA DE CAMADAS
-
-A aplicação está organizada em camadas concêntricas, onde as camadas internas
-não conhecem as camadas externas:
+## 2. Camadas
 
 ```
-┌─────────────────────────────────────────────────┐
-│           CAMADA DE APRESENTAÇÃO (UI/API)        │
-│  - endpoints/ (rotas HTTP)                      │
-│  - schemas/ (DTOs - Data Transfer Objects)      │
-└─────────────────────────────────────────────────┘
-                        ↓
-┌─────────────────────────────────────────────────┐
-│           CAMADA DE APLICAÇÃO (Use Cases)        │
-│  - use_cases/ (orquestração de lógica)          │
-│  - Depende APENAS de abstrações do domínio      │
-└─────────────────────────────────────────────────┘
-                        ↓
-┌─────────────────────────────────────────────────┐
-│        CAMADA DE DOMÍNIO (Business Logic)        │
-│  - entities/ (modelos de negócio)               │
-│  - repositories/ (interfaces)                    │
-│  - services/ (lógica de domínio complexa)       │
-│  - Sem dependências externas                    │
-└─────────────────────────────────────────────────┘
-                        ↓
-┌─────────────────────────────────────────────────┐
-│       CAMADA DE INFRAESTRUTURA (Externos)        │
-│  - external/ (APIs, bancos de dados)             │
-│  - db/ (configurações de banco)                  │
-│  - repositories/ (implementações concretas)      │
-└─────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│         PRESENTATION (API / Schemas)         │
+│  api/v1/endpoints/movies.py                  │
+│  api/v1/endpoints/user.py                    │
+│  schemas/movie_schema.py                     │
+│  schemas/user_schema.py                      │
+└──────────────────────────────────────────────┘
+                      ↓
+┌──────────────────────────────────────────────┐
+│         APPLICATION (Use Cases)              │
+│  recommend_movies.py                         │
+│  register_user.py                            │
+│  login_user.py                               │
+│  add_moodmap.py                              │
+│  set_default_moodmap.py                      │
+└──────────────────────────────────────────────┘
+                      ↓
+┌──────────────────────────────────────────────┐
+│         DOMAIN (Business Logic)              │
+│  entities/movie.py                           │
+│  entities/user.py                            │
+│  repositories/movie_repository_interface.py  │
+│  repositories/user_repository_interface.py   │
+│  services/mood_recommendation_service.py     │
+│  services/domain_service_interface.py        │
+└──────────────────────────────────────────────┘
+                      ↓
+┌──────────────────────────────────────────────┐
+│         INFRASTRUCTURE (Externos)            │
+│  external/tmdb_data_source.py                │
+│  external/tmdb_client.py                     │
+│  external/mock_data.py                       │
+│  repositories/movie_repository.py            │
+│  repositories/memory_user_repository.py      │
+└──────────────────────────────────────────────┘
 ```
 
-### 2.1 CAMADA DE DOMÍNIO (app/domain/)
+### 2.1 Camada de Domínio
 
-**Responsabilidade**: Encapsular a lógica de negócio pura
+Responsabilidade: encapsular a lógica de negócio pura, sem dependências externas.
 
-**Arquivos**:
-- `entities/movie.py`: Entidade Movie que representa um filme
-- `repositories/movie_repository_interface.py`: Interface que define contrato
-- `services/domain_service_interface.py`: Interface para serviços
-- `services/mood_recommendation_service.py`: Serviço de recomendação por mood
+**Entidades:**
 
-**Características**:
-- Não tem dependências de frameworks externos
-- Contém validações de negócio
-- Defini contralos através de interfaces (ABC)
-- Implementa inversão de dependência
+`Movie` — representa um filme. Valida que `rating` está entre 0 e 10, que `title` e `genre` não são vazios. Expõe `is_highly_rated(threshold)`.
 
-**Exemplo - Entidade Movie**:
-```python
-@dataclass
-class Movie:
-    title: str
-    genre: str
-    rating: float
-    
-    def __post_init__(self):
-        # Validação de negócio
-        if not (0.0 <= self.rating <= 10.0):
-            raise ValueError("Rating deve estar entre 0 e 10")
-```
+`User` — representa um usuário. Contém `id`, `username`, `password_hash`, `moodmap_list` (máx. 5) e `default_moodmap`. Expõe `add_new_moodmap()` e `set_default_moodmap()` com validações de negócio.
 
-### 2.2 CAMADA DE APLICAÇÃO (app/aplication/)
+**Interfaces de repositório:**
 
-**Responsabilidade**: Orquestrar a lógica de negócio e coordenar entidades
+`IMovieRepository` — define `get_by_genre()`, `get_all()`, `get_highly_rated()`.
 
-**Arquivos**:
-- `use_cases/recommend_movies.py`: Caso de uso de recomendação
+`IUserRepository` — define `get_by_id()`, `get_by_username()`, `save()`, `exists()`.
 
-**Características**:
-- Implementa Use Cases (casos de uso da aplicação)
-- Usa Dependency Injection para receber repositórios e serviços
-- Não contém lógica de validação complexa (deixa para domínio)
-- Coordena chamadas entre entidades de domínio
+**Serviços de domínio:**
 
-**Exemplo - Use Case**:
-```python
-def recommend_movies(
-    repository: IMovieRepository,  # Injeção de dependência
-    genre: Optional[str] = None,
-    mood: Optional[str] = None
-) -> List[Movie]:
-    if genre:
-        return repository.get_by_genre(genre)
-    elif mood:
-        service = get_mood_recommendation_service()
-        return service.get_recommendations(mood=mood)
-    return []
-```
+`MoodRecommendationService` — mapeia moods para gêneros e delega a busca ao repositório:
 
-### 2.3 CAMADA DE APRESENTAÇÃO (app/api/)
+| Mood | Gênero |
+|------|--------|
+| feliz | comedia |
+| triste | drama |
+| pensativo | ficcao |
+| romantico | romance |
 
-**Responsabilidade**: Expor os use cases como endpoints HTTP
+### 2.2 Camada de Aplicação
 
-**Arquivos**:
-- `api/v1/endpoints/movies.py`: Endpoints HTTP
-- `schemas/movie_schema.py`: DTOs Pydantic para API
+Responsabilidade: orquestrar a lógica de negócio coordenando entidades e repositórios.
 
-**Características**:
-- Define rotas HTTP (GET, POST, etc.)
-- Valida entrada com Pydantic
-- Transforma entidades de domínio em DTOs
-- Trata erros HTTP
-- Dependência mínima de frameworks
-
-**Exemplo - Endpoint**:
-```python
-@router.get("/recommend", response_model=List[MovieResponse])
-def recommend(
-    genre: Optional[str] = Query(None),
-    mood: Optional[str] = Query(None)
-):
-    movies = recommend_movies(
-        repository=movie_repository,
-        genre=genre,
-        mood=mood
-    )
-    return [MovieResponse.from_movie(m) for m in movies]
-```
-
-### 2.4 CAMADA DE INFRAESTRUTURA (app/infrastructure/)
-
-**Responsabilidade**: Detalhes técnicos de comunicação com sistemas externos
-
-**Arquivos**:
-- `external/movie_data_source_interface.py`: Interface para fonte de dados
-- `external/tmdb_data_source.py`: Implementação usando API TMDB
-- `external/tmdb_client.py`: Cliente HTTP para TMDB
-- `db/database.py`: Configuração de banco de dados
-
-**Características**:
-- Implementa interfaces definidas no domínio
-- Adapta APIs externas ao formato esperado
-- Pode ser substituída facilmente (MockDataSource para testes)
-- Exemplo de Adapter Pattern
-
-**Exemplo - Data Source TMDB**:
-```python
-class TMDBDataSource(IMovieDataSource):
-    def fetch_by_genre(self, genre_id: int) -> List[Dict]:
-        # Implementação específica de TMDB
-        response = requests.get(f"https://api.tmdb.org/...{genre_id}")
-        return response.json()["results"]
-```
-
-### 2.5 CAMADA DE CONFIGURAÇÃO (app/config.py)
-
-**Responsabilidade**: Gerenciar variáveis de ambiente e configurações
-
-**Características**:
-- Usa Pydantic Settings
-- Carrega de arquivo .env
-- Centralizado em um único lugar
-- Type-safe com validação
-
-
-## 3. PRINCÍPIOS APLICADOS
-
-### 3.1 DEPENDENCY INJECTION (DI)
-
-A aplicação usa injeção de dependências para desacoplar componentes:
-
-```
-┌──────────────────┐
-│  Endpoint        │
-│  - recebe repo   │──┐
-└──────────────────┘  │
-                      │ Injeção
-┌──────────────────┐  │
-│  Use Case        │◄─┤
-│  - recebe repo   │  │
-└──────────────────┘  │
-                      │
-┌──────────────────┐  │
-│  Repository      │◄─┘
-│  - implementa    │
-│    interface     │
-└──────────────────┘
-```
-
-**Factory Pattern** para criar instâncias:
-```python
-class MovieRepositoryFactory:
-    @staticmethod
-    def get_repository() -> MovieRepository:
-        # Singleton: mesma instância sempre retornada
-        return MovieRepositoryFactory._instance
-```
-
-### 3.2 INVERSÃO DE DEPENDÊNCIA (Dependency Inversion Principle)
-
-Módulos dependem de abstrações, não de implementações concretas:
-
-```
-✓ BOM:
-  Use Case → IMovieRepository (interface)
-  ↓
-  TMDBDataSource (implementação)
-
-✗ RUIM:
-  Use Case → TMDBDataSource (acoplado)
-```
-
-### 3.3 SINGLE RESPONSIBILITY PRINCIPLE (SRP)
-
-Cada classe tem uma única responsabilidade:
-
-| Classe | Responsabilidade |
-|--------|------------------|
-| Movie | Encapsular dados de um filme |
-| MovieRepository | Transformar dados em entidades |
-| recommend_movies() | Orquestrar recomendação |
-| recommend() endpoint | Expor como HTTP |
-
-### 3.4 OPEN/CLOSED PRINCIPLE (OCP)
-
-Aberto para extensão, fechado para modificação:
-
-- Adicionar novo tipo de recomendação? → Estender IDomainService
-- Adicionar novo endpoint? → Criar novo route
-- Trocar TMDB por outro serviço? → Implementar IMovieDataSource
-
-### 3.5 LISKOV SUBSTITUTION PRINCIPLE (LSP)
-
-Implementações podem ser substituídas sem quebrar o código:
-
-```python
-# Qualquer implementação de IMovieDataSource funciona:
-data_source = TMDBDataSource()          # Produção
-data_source = MockDataSource()          # Testes
-data_source = DatabaseDataSource()      # Futuro
-repo = MovieRepository(data_source)     # Funciona igual!
-```
-
-### 3.6 INTERFACE SEGREGATION PRINCIPLE (ISP)
-
-Interfaces específicas e pequenas:
-
-```python
-class IMovieRepository(ABC):
-    # Interface específica para repositório
-    def get_by_genre(self, genre: str) -> List[Movie]: pass
-
-class IMovieDataSource(ABC):
-    # Interface específica para fonte de dados
-    def fetch_by_genre(self, genre_id: int) -> List[Dict]: pass
-```
-
-
-## 4. FLUXO DE DADOS
-
-### 4.1 Requisição HTTP
-
-```
-1. GET /api/v1/recommend?genre=acao
-
-   ↓
-
-2. Endpoint movies.recommend(genre="acao")
-   - Valida parametros com Query
-   
-   ↓
-
-3. Chama recommend_movies(repository=repo, genre="acao")
-   - Use case: orquestra lógica
-   
-   ↓
-
-4. repository.get_by_genre("acao")
-   - Repositório: transforma dados
-   
-   ↓
-
-5. data_source.fetch_by_genre(28)
-   - Data Source: chama API TMDB
-   
-   ↓
-
-6. requests.get("https://api.tmdb.org/...")
-   - Cliente HTTP: chamada externa
-   
-   ↓
-
-7. Resposta volta transformada:
-   Lista[Movie] → List[MovieResponse] → JSON
-
-8. HTTP 200 OK com JSON
-```
-
-### 4.2 Transformação de Dados
-
-```
-TMDB API Response (Dict)
-    ↓
-TMDBDataSource.fetch_by_genre()
-    ↓ (Adapter)
-MovieRepository.get_by_genre()
-    ↓ (Mapper: Dict → Movie)
-Movie (Entidade de Domínio)
-    ↓
-use_cases.recommend_movies()
-    ↓
-MovieResponse (DTO)
-    ↓
-JSON na resposta HTTP
-```
-
-
-## 5. PADRÕES DE DESIGN
-
-### 5.1 Factory Pattern
-
-```python
-# MovieRepositoryFactory cria instâncias do repositório
-repo = MovieRepositoryFactory.get_repository()
-
-# Benefícios:
-# - Centraliza criação
-# - Gerencia singleton
-# - Facilita testes
-```
-
-### 5.2 Adapter Pattern
-
-```python
-# TMDBDataSource adapta API TMDB ao contrato IMovieDataSource
-class TMDBDataSource(IMovieDataSource):
-    def fetch_by_genre(self, genre_id: int) -> List[Dict]:
-        # Adapta chamada à API
-        response = fetch_movies_by_genre(genre_id)
-        return response
-```
-
-### 5.3 Singleton Pattern
-
-```python
-# Instância única de MovieRepository
-_instance = None
-
-@staticmethod
-def get_repository() -> MovieRepository:
-    if _instance is None:
-        _instance = MovieRepository(data_source)
-    return _instance
-```
-
-### 5.4 Strategy Pattern
-
-```python
-# Diferentes estratégias de recomendação
-mood_service = MoodRecommendationService()  # Strategy 1
-# Future: GenreService, UserPreferenceService  # Strategy 2, 3
-```
-
-
-## 6. ESTRUTURA DE DIRETÓRIOS
-
-```
-moodflix-main/
-│
-├── app/
-│   ├── __init__.py
-│   │
-│   ├── config.py                    # Configurações
-│   ├── main.py                      # Aplicação principal
-│   │
-│   ├── domain/                      # CAMADA DE DOMÍNIO
-│   │   ├── entities/
-│   │   │   └── movie.py            # Entidade Movie
-│   │   ├── repositories/
-│   │   │   └── movie_repository_interface.py  # Interface
-│   │   └── services/
-│   │       ├── domain_service_interface.py    # Interface
-│   │       └── mood_recommendation_service.py # Implementação
-│   │
-│   ├── aplication/                 # CAMADA DE APLICAÇÃO
-│   │   └── use_cases/
-│   │       └── recommend_movies.py  # Use Case
-│   │
-│   ├── api/                        # CAMADA DE APRESENTAÇÃO
-│   │   └── v1/
-│   │       ├── __init__.py
-│   │       └── endpoints/
-│   │           └── movies.py       # Endpoints HTTP
-│   │
-│   ├── schemas/                    # DTOs da API
-│   │   └── movie_schema.py
-│   │
-│   ├── infrastructure/             # CAMADA DE INFRAESTRUTURA
-│   │   ├── db/
-│   │   │   └── database.py
-│   │   ├── repositories/
-│   │   │   └── movie_repository.py  # Implementação concreta
-│   │   └── external/
-│   │       ├── movie_data_source_interface.py  # Interface
-│   │       ├── tmdb_data_source.py   # Implementação TMDB
-│   │       ├── tmdb_client.py        # Cliente HTTP
-│   │       └── mock_data.py          # Dados para testes
-│   │
-│   └── utils/
-│       └── helpers.py              # Funções auxiliares
-│
-├── requirements.txt                # Dependências Python
-└── .env                           # Variáveis de ambiente
-```
-
-
-## 7. DEPENDÊNCIAS DO PROJETO
-
-**Framework Web**: FastAPI
-- Para criar endpoints HTTP
-- Validação automática com Pydantic
-- Documentação automática (Swagger)
-
-**Cliente HTTP**: requests
-- Para chamar API TMDB
-
-**Configuração**: pydantic-settings
-- Para gerenciar variáveis de ambiente
-
-**Banco de Dados** (futuro): SQLAlchemy
-- Para persistência de dados
-
-
-## 8. COMO ADICIONAR NOVAS FUNCIONALIDADES
-
-### 8.1 Novo Endpoint de Recomendação
-
-1. Criar nova interface em `domain/services/`:
-```python
-class INewRecommendationService(IDomainService):
-    def get_recommendations(self, **kwargs) -> List[Movie]: pass
-```
-
-2. Implementar serviço em `domain/services/`:
-```python
-class NewRecommendationService(INewRecommendationService):
-    def get_recommendations(self, **kwargs) -> List[Movie]:
-        # Implementação
-        pass
-```
-
-3. Usar em use case `aplication/use_cases/`:
-```python
-def recommend_movies_by_new_criteria(...):
-    service = NewRecommendationService()
-    return service.get_recommendations()
-```
-
-4. Expor como endpoint em `api/v1/endpoints/`:
-```python
-@router.get("/recommend-new")
-def recommend_new(...):
-    movies = recommend_movies_by_new_criteria(...)
-    return [MovieResponse.from_movie(m) for m in movies]
-```
-
-### 8.2 Adicionar Banco de Dados
-
-1. Implementar `IMovieRepository` com banco de dados:
-```python
-class DatabaseMovieRepository(IMovieRepository):
-    def get_by_genre(self, genre: str) -> List[Movie]:
-        # Query no banco
-        results = db.session.query(MovieModel).filter(...)
-        return [Movie.from_model(r) for r in results]
-```
-
-2. Alterar factory para usar nova implementação:
-```python
-@staticmethod
-def _get_data_source():
-    return DatabaseDataSource()
-```
-
-### 8.3 Adicionar Testes
-
-```python
-# tests/test_recommend_movies.py
-from unittest.mock import Mock
-from app.aplication.use_cases.recommend_movies import recommend_movies
-
-def test_recommend_by_genre():
-    mock_repo = Mock(spec=IMovieRepository)
-    mock_repo.get_by_genre.return_value = [...]
-    
-    result = recommend_movies(repository=mock_repo, genre="acao")
-    
-    assert len(result) > 0
-    mock_repo.get_by_genre.assert_called_once_with("acao", limit=10)
-```
-
-
-## 9. VANTAGENS DA CLEAN ARCHITECTURE
-
-| Vantagem | Benefício |
+| Use Case | Descrição |
 |----------|-----------|
-| **Testabilidade** | Mock de dependências é fácil |
-| **Flexibilidade** | Trocar implementações sem modificar código |
-| **Manutenibilidade** | Cada camada tem responsabilidade clara |
-| **Escalabilidade** | Fácil adicionar novas funcionalidades |
-| **Independência** | Código não acoplado a frameworks |
-| **Documentação** | Estrutura é auto-documentada |
-| **Equipes** | Desenvolvedores trabalham em paralelo |
-| **Refactoring** | Seguro refatorar sem quebrar funcionalidades |
+| `recommend_movies` | Recebe `genre` ou `mood`, delega ao repositório ou ao `MoodRecommendationService` |
+| `RegisterUser` | Valida unicidade do username, cria entidade `User`, persiste via repositório |
+| `LoginUser` | Busca usuário por username, verifica hash da senha |
+| `AddMoodMap` | Busca usuário por ID, chama `user.add_new_moodmap()`, persiste |
+| `SetDefaultMoodMap` | Busca usuário por ID, chama `user.set_default_moodmap()`, persiste |
 
+Todos os use cases recebem o repositório por injeção de dependência.
 
-## 10. PRÓXIMOS PASSOS
+### 2.3 Camada de Apresentação
 
-1. **Banco de Dados**: Implementar com SQLAlchemy
-2. **Autenticação**: JWT tokens
-3. **Cache**: Redis para filmes populares
-4. **Paginação**: Suporte a offset/limit
-5. **Filtros**: Filtros avançados de filmes
-6. **Testes**: Suite completa com pytest
-7. **CI/CD**: GitHub Actions
-8. **Containerização**: Docker
-9. **API Versioning**: Suporte a múltiplas versões
-10. **Monitoring**: Logs e métricas
+Responsabilidade: expor os use cases como endpoints HTTP.
 
+**Endpoints implementados:**
 
-## CONCLUSÃO
+| Método | Rota | Status |
+|--------|------|--------|
+| GET | `/api/v1/recommend` | ✅ Funcionando |
+| GET | `/api/v1/movies` | ⚠️ Retorna lista vazia |
+| POST | `/api/v1/users/register` | ✅ Funcionando |
+| POST | `/api/v1/users/login` | ✅ Funcionando |
+| GET | `/health` | ✅ Funcionando |
 
-A arquitetura MoodFlix segue rigorosamente os princípios de Clean Architecture,
-garantindo um código:
-- Independente de detalhes técnicos
-- Fácil de testar
-- Flexível para mudanças
-- Bem organizado
-- Pronto para crescer
+**Endpoints pendentes (use cases prontos, sem rota HTTP):**
+- `POST /api/v1/users/{id}/moodmaps` — AddMoodMap
+- `PATCH /api/v1/users/{id}/moodmaps/default` — SetDefaultMoodMap
 
-Para dúvidas, consulte a documentação das classes individuais (docstrings)
-e os exemplos de uso nos endpoints.
+### 2.4 Camada de Infraestrutura
+
+Responsabilidade: detalhes técnicos de comunicação com sistemas externos.
+
+**MovieRepository** — implementa `IMovieRepository`. Recebe `IMovieDataSource` por injeção. Converte dicionários da TMDB em entidades `Movie`. Usa `MovieRepositoryFactory` (Singleton).
+
+**TMDBDataSource** — implementa `IMovieDataSource`. Mapeia nomes de gêneros em português para IDs numéricos da TMDB. Delega chamadas HTTP ao `tmdb_client`.
+
+**MockMovieData** — dados estáticos para desenvolvimento e testes sem chave TMDB.
+
+**MemoryUserRepository** — implementa `IUserRepository` com lista em memória. Dados perdidos ao reiniciar a aplicação. Deve ser substituído por implementação com banco de dados.
+
+## 3. Fluxo de Dados — Recomendação por Mood
+
+```
+GET /api/v1/recommend?mood=feliz
+
+  ↓ Endpoint (movies.py)
+    Valida parâmetros
+
+  ↓ Use Case (recommend_movies)
+    Chama get_mood_recommendation_service(repository)
+
+  ↓ MoodRecommendationService
+    Mapeia "feliz" → "comedia"
+    Chama repository.get_by_genre("comedia")
+
+  ↓ MovieRepository
+    Mapeia "comedia" → genre_id 35
+    Chama data_source.fetch_by_genre(35)
+
+  ↓ TMDBDataSource → tmdb_client
+    GET https://api.themoviedb.org/3/discover/movie?with_genres=35
+
+  ↑ Retorno
+    List[Dict] → List[Movie] → List[MovieResponse] → JSON
+```
+
+## 4. Padrões de Design Utilizados
+
+**Factory + Singleton** — `MovieRepositoryFactory` cria e mantém uma única instância do repositório e da fonte de dados.
+
+**Adapter** — `TMDBDataSource` adapta a API TMDB ao contrato `IMovieDataSource`. `MovieRepository` adapta dicionários brutos em entidades `Movie`.
+
+**Strategy** — `MoodRecommendationService` é uma estratégia de recomendação intercambiável via `IDomainService`.
+
+**Dependency Injection** — todos os use cases e repositórios recebem suas dependências por parâmetro, nunca as instanciam diretamente.
+
+## 5. Estado Atual e Pendências
+
+### Implementado e funcionando
+- Recomendação por gênero e por mood via TMDB
+- Entidades `Movie` e `User` com validações de negócio
+- Use cases de usuário completos (registro, login, moodmap)
+- Repositório de usuários em memória
+
+### Pendente / incompleto
+- `GET /movies` retorna lista vazia
+- Hash de senha usa prefixo simples (`hashed_`), não é seguro para produção
+- Endpoints de MoodMap não expostos via HTTP
+- MoodMap do usuário não influencia o `/recommend`
+- Sem autenticação JWT
+- Sem banco de dados persistente
+- Sem testes automatizados com pytest
+
+## 6. Como Estender o Projeto
+
+### Adicionar novo tipo de recomendação
+1. Criar nova classe que implemente `IDomainService` em `domain/services/`
+2. Criar ou adaptar o use case em `application/use_cases/`
+3. Expor novo endpoint em `api/v1/endpoints/`
+
+### Trocar fonte de dados
+Implementar `IMovieDataSource` com a nova fonte e alterar `MovieRepositoryFactory._get_data_source()`. Nenhuma outra camada precisa mudar.
+
+### Adicionar banco de dados
+Implementar `IUserRepository` (e futuramente `IMovieRepository`) com SQLAlchemy ou similar. Substituir `MemoryUserRepository` na instanciação em `user.py`.
+
+### Adicionar autenticação JWT
+1. Instalar `python-jose` e `passlib`
+2. Gerar token no `LoginUser` use case
+3. Criar middleware ou dependency do FastAPI para validar token
+4. Proteger endpoints de MoodMap e recomendações personalizadas
+
+## 7. Dependências entre Camadas
+
+```
+Domain        ← não depende de nada externo
+Application   ← depende apenas de interfaces do Domain
+Presentation  ← depende de Application e Schemas
+Infrastructure← implementa interfaces do Domain
+```
+
+A regra fundamental: **camadas internas nunca importam de camadas externas**.
 
 ---
-Documentação gerada em: maio/2026
+
+Documentação atualizada em: maio/2026
 Arquitetura: Clean Architecture (Robert C. Martin)
-Framework: FastAPI
+Framework: FastAPI 0.135
 Python: 3.8+
-"""
