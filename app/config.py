@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     """
     
     TMDB_API_KEY: str
+    SECRET_KEY : str
     APP_NAME: str = "MoodFlix API"
     APP_VERSION: str = "1.0.0"
     LOG_LEVEL: str = "INFO"
