@@ -29,7 +29,7 @@ class RegisterUser:
             username=username,
             password_hash=password_hash,
             moodmap_list=[],
-            default_moodmap=None
+            default_moodmap= None
         )
 
         # 4. Persistência
@@ -39,5 +39,6 @@ class RegisterUser:
         return {
             "id": new_user.id,
             "username": new_user.username,
-            "message": "Usuário cadastrado com sucesso!"
+            "message": "Usuário cadastrado com sucesso!",
+            
         }

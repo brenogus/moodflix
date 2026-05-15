@@ -3,7 +3,10 @@ from app.domain.entities.user import User
 import jwt
 from app.config import settings
 from app.domain.repositories.blacklist_repository_interface import IBlacklistRepository
+import logging
 
+
+logger = logging.getLogger(__name__)
 
 def create_token(user : User= None): # gera um novo JWT
     if user:
@@ -33,6 +36,7 @@ def is_blacklisted(token : str = None, blacklist_repository : IBlacklistReposito
 
 def blacklist_token(token, blacklist_repository: IBlacklistRepository): # adiciona o token na blacklist
     if token and blacklist_repository:
+         logger.info("Chamando add_token do repositorio blacklist")
          return blacklist_repository.add_token(token)
     else:
          return False

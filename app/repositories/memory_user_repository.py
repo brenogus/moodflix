@@ -28,5 +28,7 @@ class MemoryUserRepository(IUserRepository):
         if existing_user:
             index = self._users.index(existing_user)
             self._users[index] = user
+            return 
         else:
             self._users.append(user)
+            return 

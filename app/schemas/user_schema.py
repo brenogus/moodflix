@@ -13,4 +13,10 @@ class UserResponse(BaseModel):
     id: str
     username: str
     message: str
-    token: Optional[str] 
+    token: Optional[str] = None
+
+class UserLogout(BaseModel):
+    token: str
+
+class UserLogoutResponse(BaseModel):
+    message: str
